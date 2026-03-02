@@ -113,18 +113,12 @@ class map_service:
                 trace.marker.color = self._FLAT_COLOR
                 trace.showlegend = False
 
-        # Légende de taille (cercles de référence)
-        if size_col:
-            self._add_size_legend(
-                fig,
-                clean_df,
-                size_col,
-                metric_label=metric_col or "",
-                log_scale=log_scale,
-                color=self._FLAT_COLOR if effective_color is None else "gray",
-            )
-
-        fig.update_layout(height=650)
+        # Masquer les légendes Plotly (rendues en HTML à côté de la carte)
+        fig.update_layout(
+            height=650,
+            coloraxis_showscale=False,
+            showlegend=False,
+        )
         return fig
 
     # Palettes proposées à l'utilisateur
@@ -224,56 +218,51 @@ class map_service:
         return fig.to_html()
 
     @classmethod
-    def _add_size_legend(
+    def compute_size_legend(
         cls,
-        fig: go.Figure,
         df: pd.DataFrame,
+        metric_col: str,
         size_col: str,
-        metric_label: str,
         log_scale: bool,
-        color: str = "steelblue",
         n_levels: int = 4,
-    ) -> None:
-        """Ajoute des traces fantômes formant une légende de taille (cercles)."""
+    ) -> list[tuple[str, float]]:
+        """Renvoie une liste de (label, diamètre_px) pour la légende de taille.
+
+        Les diamètres reproduisent la logique de ``px.scatter_geo(size_max=...)``.
+        """
         vals = df[size_col].dropna()
         if vals.empty or vals.max() == 0:
-            return
+            return []
 
         vmax = float(vals.max())
         vmin = float(vals.min())
         size_max = cls._SIZE_MAX
 
-        # Valeurs représentatives réparties linéairement
         if vmin == vmax:
             rep = [vmax]
         else:
             rep = list(np.linspace(vmin, vmax, n_levels))
 
+        items: list[tuple[str, float]] = []
         for v in rep:
-            # Diamètre proportionnel (cohérent avec px scatter size_max)
-            diameter = max(5, size_max * float(np.sqrt(v / vmax))) if vmax > 0 else 8
-
-            # Valeur originale (avant log) pour le libellé
+            diameter = max(4, size_max * float(np.sqrt(v / vmax))) if vmax > 0 else 8
             orig = float(np.expm1(v)) if log_scale else float(v)
             label = f"{int(round(orig)):,}" if orig >= 1 else f"{orig:.2f}"
+            items.append((label, diameter))
+        return items
 
-            fig.add_trace(
-                go.Scattergeo(
-                    lat=[None],
-                    lon=[None],
-                    mode="markers",
-                    marker=dict(
-                        size=diameter,
-                        color=color,
-                        line=dict(width=1, color="DarkSlateGrey"),
-                        sizemode="diameter",
-                    ),
-                    name=f"{metric_label} = {label}",
-                    legendgroup="taille",
-                    legendgrouptitle=dict(text="Taille"),
-                    showlegend=True,
-                )
-            )
+    @staticmethod
+    def color_scale_to_css(scale_name: str, direction: str = "to top") -> str:
+        """Convertit un nom de palette Plotly en gradient CSS linéaire."""
+        import plotly.colors as pc
+
+        try:
+            colors = pc.get_colorscale(scale_name)
+        except Exception:
+            return f"{direction}, #440154, #fde725"  # fallback Viridis
+
+        stops = ", ".join(f"{c[1]} {c[0] * 100:.0f}%" for c in colors)
+        return f"{direction}, {stops}"
 
     @staticmethod
     def _apply_log_scale(
