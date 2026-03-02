@@ -1,7 +1,10 @@
 """Service de cartographie pour créer des cartes sur n'importe quelle métrique."""
 
+from __future__ import annotations
+
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -13,11 +16,12 @@ class map_service:
     def create_points_map(
         self,
         df: pd.DataFrame,
-        lat_col: str,
-        lon_col: str,
+        lat_col: str = "lat",
+        lon_col: str = "lon",
         metric_col: str | None = None,
         hover_name: str | None = None,
         title: str = "Carte des points",
+        log_scale: bool = False,
     ) -> go.Figure:
         """Carte de points géographiques avec taille/couleur optionnelle selon une métrique."""
         self._validate_columns(df, [lat_col, lon_col], "create_points_map")
@@ -26,13 +30,17 @@ class map_service:
         if clean_df.empty:
             return self._empty_map("Aucune donnée géographique disponible")
 
+        size_col = self._apply_log_scale(clean_df, metric_col, log_scale)
+
         fig = px.scatter_geo(
             clean_df,
             lat=lat_col,
             lon=lon_col,
             color=metric_col if metric_col and metric_col in clean_df.columns else None,
-            size=metric_col if metric_col and metric_col in clean_df.columns else None,
-            hover_name=hover_name if hover_name in clean_df.columns else None,
+            size=size_col,
+            hover_name=hover_name
+            if hover_name and hover_name in clean_df.columns
+            else None,
             projection="natural earth",
             title=title,
         )
@@ -42,36 +50,75 @@ class map_service:
     def create_metric_bubble_map(
         self,
         df: pd.DataFrame,
-        lat_col: str,
-        lon_col: str,
-        metric_col: str,
+        lat_col: str = "lat",
+        lon_col: str = "lon",
+        metric_col: str | None = None,
+        color_col: str | None = None,
         hover_cols: list[str] | None = None,
         title: str = "Carte bulle par métrique",
+        log_scale: bool = False,
+        color_continuous_scale: str = "YlOrRd",
     ) -> go.Figure:
         """Carte bulle pour visualiser une métrique quantitative sur des points."""
-        self._validate_columns(
-            df, [lat_col, lon_col, metric_col], "create_metric_bubble_map"
-        )
+        self._validate_columns(df, [lat_col, lon_col], "create_metric_bubble_map")
 
-        clean_df = df.dropna(subset=[lat_col, lon_col, metric_col]).copy()
+        clean_df = df.dropna(subset=[lat_col, lon_col]).copy()
         if clean_df.empty:
             return self._empty_map("Aucune donnée suffisante pour la carte bulle")
 
+        # Taille optionnelle
+        size_col = None
+        if metric_col and metric_col in clean_df.columns:
+            clean_df = clean_df.dropna(subset=[metric_col])
+            size_col = self._apply_log_scale(clean_df, metric_col, log_scale)
+
         valid_hover_cols = [c for c in (hover_cols or []) if c in clean_df.columns]
+        hover_data_dict = {c: True for c in valid_hover_cols}
+
+        # Couleur optionnelle — si pas de couleur explicite mais taille présente,
+        # on utilise la métrique de taille comme couleur pour afficher la légende
+        effective_color = None
+        if color_col and color_col in clean_df.columns:
+            effective_color = color_col
+        elif size_col and size_col in clean_df.columns:
+            effective_color = size_col
+
+        # color_continuous_scale only for numeric color columns
+        ccs = None
+        if effective_color and effective_color in clean_df.columns:
+            if clean_df[effective_color].dtype.kind in "iuf":
+                ccs = color_continuous_scale
 
         fig = px.scatter_geo(
             clean_df,
             lat=lat_col,
             lon=lon_col,
-            size=metric_col,
-            color=metric_col,
-            hover_data=valid_hover_cols,
+            size=size_col,
+            color=effective_color,
+            color_continuous_scale=ccs,
+            hover_data=hover_data_dict if hover_data_dict else None,
+            hover_name=valid_hover_cols[0] if valid_hover_cols else None,
             projection="natural earth",
             title=title,
             size_max=32,
         )
         fig.update_layout(height=650)
+
         return fig
+
+    # Palettes proposées à l'utilisateur
+    COLOR_SCALES = [
+        "Plasma",
+        "Reds",
+        "YlOrRd",
+        "Inferno",
+        "Viridis",
+        "Turbo",
+        "Hot",
+        "Electric",
+        "Magma",
+        "Cividis",
+    ]
 
     def create_choropleth_map(
         self,
@@ -82,6 +129,7 @@ class map_service:
             "country names", "ISO-3", "USA-states"
         ] = "country names",
         title: str = "Carte choroplèthe",
+        color_continuous_scale: str = "YlOrRd",
     ) -> go.Figure:
         """Carte choroplèthe pour des agrégations par zone (pays, codes ISO, états)."""
         self._validate_columns(df, [location_col, metric_col], "create_choropleth_map")
@@ -96,7 +144,7 @@ class map_service:
             locationmode=location_mode,
             color=metric_col,
             hover_name=location_col,
-            color_continuous_scale="Reds",
+            color_continuous_scale=color_continuous_scale,
             title=title,
         )
         fig.update_layout(height=650)
@@ -153,6 +201,21 @@ class map_service:
     def to_html(fig: go.Figure) -> str:
         """Convertit une figure Plotly en HTML."""
         return fig.to_html()
+
+    @staticmethod
+    def _apply_log_scale(
+        df: pd.DataFrame,
+        metric_col: str | None,
+        log_scale: bool,
+    ) -> str | None:
+        """Ajoute une colonne `_size_log` si log_scale est activé, retourne le nom de la colonne de taille."""
+        if not metric_col or metric_col not in df.columns:
+            return None
+        if not log_scale:
+            return metric_col
+        # log1p pour gérer les zéros ; on normalise ensuite pour que size_max fonctionne
+        df["_size_log"] = np.log1p(df[metric_col].clip(lower=0))
+        return "_size_log"
 
     @staticmethod
     def _validate_columns(df: pd.DataFrame, required_cols: list[str], ctx: str) -> None:
