@@ -1,37 +1,39 @@
 import streamlit as st
+import pandas as pd
+from src.data.mariadb_client import MariaDBClient
 
 def main():
-    st.set_page_config(
-        page_title="Projet SISE-OPSIE 2026",
-        page_icon="🛡️",
-        layout="wide"
-    )
+    st.title("🛡️ Test de Connexion : Table FW")
+    db = MariaDBClient()
 
-    # Header principal conforme au sujet
-    st.title("🛡️ Dashboard de l'état du SI")
-    st.info("Projet SISE-OPSIE 2026 - Analyse de traces et traitement d'événements")
+    try:
+        # Récupération brute des données de la table FW
+        df = db.fetch_logs(table_name="FW", limit=50)
+        
+        if df.empty:
+            st.warning("⚠️ Connexion réussie, mais la table 'FW' est vide.")
+            return
 
-    # Structure en colonnes pour les KPIs futurs
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Flux Totaux", "0", help="Nombre de lignes de log analysées")
-    with col2:
-        st.metric("Alertes (Deny)", "0", delta_color="inverse")
-    with col3:
-        st.metric("Règles Actives", "0")
+        st.success(f"✅ Connexion établie ! {len(df)} lignes récupérées.")
 
-    st.divider()
+        # --- APERÇU DES DONNÉES ---
+        st.subheader("Aperçu des 50 dernières lignes")
+        # Utilisation de st.dataframe pour le parcours des données (Partie 1.5.2) [cite: 169]
+        st.dataframe(df, use_container_width=True)
 
-    # Section centrale d'attente
-    st.warning("⚠️ **En attente de la création de visualisations et analyses**")
-    
-    with st.expander("Objectifs de la Web App", expanded=True):
-        st.write("""
-        * **Analyse descriptive** : Flux rejetés/autorisés par protocoles TCP/UDP[cite: 166].
-        * **Exploration** : Parcours des données via renderDataTable[cite: 169].
-        * **Interactivité** : Visualisation des IP sources et occurrences de destinations[cite: 170].
-        * **Analytique** : Scénarios de Machine Learning et IA (Clustering/LLM)[cite: 178, 184].
-        """)
+        # --- DIAGNOSTIC DES DATES ---
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        min_date = df['datetime'].min()
+        max_date = df['datetime'].max()
+        
+        st.info(f"Plage temporelle des données actuelles : du {min_date} au {max_date}")
+        
+        # Vérification de la période projet (Nov 2025 - Fév 2026) 
+        if min_date < pd.Timestamp('2025-11-01') or max_date > pd.Timestamp('2026-02-28'):
+            st.warning("Note : Ces données sont hors de la période d'analyse du projet.")
+
+    except Exception as e:
+        st.error(f"❌ Erreur lors de la lecture : {e}")
 
 if __name__ == "__main__":
     main()

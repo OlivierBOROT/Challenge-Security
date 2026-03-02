@@ -9,7 +9,6 @@ uv.lock
 *.pyc
 
 # Données (Très important vu la taille des fichiers du projet)
-data/
 *.zip
 *.log
 *.parquet
