@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -77,12 +80,15 @@ try:
         )
         max_rows = int(count_df.iloc[0]["total"]) if not count_df.empty else 20000
         default_rows = min(5000, max_rows)
+        # Utiliser un key unique pour que Streamlit conserve le choix utilisateur
+        _slider_key = f"row_limit_{selected_table}"
         row_limit = st.slider(
             "Nombre de lignes",
             min_value=200,
             max_value=max(200, max_rows),
             value=default_rows,
             step=200,
+            key=_slider_key,
         )
 
     table_columns = db_client.list_columns(selected_table)
@@ -101,12 +107,11 @@ try:
 
     # ── Filtre temporel (colonne fixe : datetime) ───────────────────
     time_where_clause = None
-    time_params: dict = {}
 
     if _TIME_COL in table_columns:
         bounds_query = (
-            f"SELECT MIN({_TIME_COL}) AS min_val, MAX({_TIME_COL}) AS max_val "
-            f"FROM {selected_table} WHERE {_TIME_COL} IS NOT NULL"
+            f"SELECT MIN(`{_TIME_COL}`) AS min_val, MAX(`{_TIME_COL}`) AS max_val "
+            f"FROM {selected_table} WHERE `{_TIME_COL}` IS NOT NULL"
         )
         bounds_df = db_client.execute_query(bounds_query)
 
@@ -136,16 +141,22 @@ try:
                         min_available.to_pydatetime(),
                         max_available.to_pydatetime(),
                     ),
+                    step=timedelta(minutes=1),
                     format="YYYY-MM-DD HH:mm:ss",
+                    key=f"time_range_{selected_table}",
                 )
-            time_where_clause = f"{_TIME_COL} BETWEEN :start_time AND :end_time"
-            time_params = {
-                "start_time": pd.to_datetime(start_time),
-                "end_time": pd.to_datetime(end_time),
-            }
+            _start_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+            _end_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+            time_where_clause = f"`{_TIME_COL}` BETWEEN '{_start_str}' AND '{_end_str}'"
+            # Pas de params (valeurs inlinées, provenant des bornes DB)
 
     _ACTION_COL = "action"
     _COMPUTED_METRICS = ["Nb requêtes", "Nb Permit", "Nb Deny"]
+    _size_legend_items: list[tuple[str, float]] = []
+    effective_color = None
+    color_metric = "(aucun)"
+    size_metric = "(aucun)"
+    color_scale = map_service.COLOR_SCALES[0]
 
     # ── Carte points ────────────────────────────────────────────────
     if map_type == "points":
@@ -181,13 +192,14 @@ try:
             table_name=selected_table,
             columns=required_cols,
             where_clause=time_where_clause,
-            params=time_params,
             limit=row_limit,
         )
 
         if df_raw.empty:
             st.warning("Aucune donnée pour les filtres sélectionnés.")
             st.stop()
+
+        st.caption(f"▶ {len(df_raw)} lignes brutes récupérées (limit={row_limit})")
 
         # ── Agrégation par IP : nb requêtes, nb permit, nb deny ─────
         if _ACTION_COL in df_raw.columns:
@@ -267,6 +279,23 @@ try:
             color_continuous_scale=color_scale,
         )
 
+        # ── Légende de taille (HTML/SVG à côté de la carte) ──────────
+        if effective_size and effective_size in df_geo.columns:
+            _size_col_used = maps._apply_log_scale(
+                df_geo.copy(), effective_size, log_scale
+            )
+            if _size_col_used:
+                _size_legend_items = map_service.compute_size_legend(
+                    df_geo
+                    if not log_scale
+                    else df_geo.assign(
+                        _size_log=np.log1p(df_geo[effective_size].clip(lower=0))
+                    ),
+                    metric_col=effective_size,
+                    size_col=_size_col_used,
+                    log_scale=log_scale,
+                )
+
     # ── Choroplèthe ─────────────────────────────────────────────────
     else:
         choro1, choro2 = st.columns(2)
@@ -292,13 +321,14 @@ try:
             table_name=selected_table,
             columns=required_cols,
             where_clause=time_where_clause,
-            params=time_params,
             limit=row_limit,
         )
 
         if df_raw.empty:
             st.warning("Aucune donnée pour les filtres sélectionnés.")
             st.stop()
+
+        st.caption(f"▶ {len(df_raw)} lignes brutes récupérées (limit={row_limit})")
 
         with st.spinner("Géolocalisation des adresses IP…"):
             df_geo = geo.enrich_dataframe(df_raw, ip_col)
@@ -340,7 +370,105 @@ try:
             color_continuous_scale=choro_color_scale,
         )
 
-    st.plotly_chart(fig, use_container_width=True)
+    # ── Affichage carte + légendes côte à côte ─────────────────────
+    _has_color_legend = (
+        map_type == "points"
+        and color_metric != "(aucun)"
+        and effective_color is not None
+    )
+    _is_categorical_color = color_metric == "Pays"
+    _has_size_legend = map_type == "points" and bool(_size_legend_items)
+    _has_right_legend = _has_color_legend or _has_size_legend
+
+    if _has_right_legend:
+        _col_map, _col_legend = st.columns([10, 2])
+        with _col_map:
+            st.plotly_chart(fig, width="stretch")
+        with _col_legend:
+            _legend_parts = ""
+
+            # ── Légende couleur ─────────────────────────────
+            if _has_color_legend and effective_color in df_geo.columns:
+                if _is_categorical_color:
+                    # Légende catégorielle (carrés colorés par pays)
+                    import plotly.express as _px
+
+                    _countries = df_geo[effective_color].dropna().unique().tolist()
+                    _px_colors = _px.colors.qualitative.Plotly
+                    _legend_parts += (
+                        "<div style='margin-top:50px; padding:10px; "
+                        "border:1px solid #ddd; border-radius:8px; "
+                        "background:#fafafa; margin-bottom:8px; "
+                        "max-height:350px; overflow-y:auto'>"
+                        "<strong style='font-size:13px'>Pays</strong><br>"
+                    )
+                    for _i, _c in enumerate(sorted(_countries)):
+                        _clr = _px_colors[_i % len(_px_colors)]
+                        _legend_parts += (
+                            f"<div style='display:flex;align-items:center;"
+                            f"margin:2px 0'>"
+                            f"<div style='width:12px;height:12px;"
+                            f"background:{_clr};border-radius:2px;"
+                            f"flex-shrink:0;border:1px solid #888'></div>"
+                            f"<span style='margin-left:6px;font-size:11px;"
+                            f"white-space:nowrap'>{_c}</span></div>"
+                        )
+                    _legend_parts += "</div>"
+                else:
+                    # Légende continue (gradient vertical)
+                    _cvals = df_geo[effective_color].dropna()
+                    if not _cvals.empty and _cvals.dtype.kind in "iuf":
+                        _cmin = float(_cvals.min())
+                        _cmax = float(_cvals.max())
+                        _css_gradient = map_service.color_scale_to_css(
+                            color_scale, direction="to top"
+                        )
+                        _legend_parts += (
+                            f"<div style='margin-top:50px; padding:10px; "
+                            f"border:1px solid #ddd; border-radius:8px; "
+                            f"background:#fafafa; margin-bottom:8px'>"
+                            f"<strong style='font-size:13px'>{color_metric}</strong>"
+                            f"<div style='display:flex; align-items:stretch; "
+                            f"margin-top:6px; height:180px'>"
+                            f"<div style='width:18px; border-radius:4px; "
+                            f"background:linear-gradient({_css_gradient}); "
+                            f"border:1px solid #aaa'></div>"
+                            f"<div style='display:flex; flex-direction:column; "
+                            f"justify-content:space-between; margin-left:8px; "
+                            f"font-size:11px'>"
+                            f"<span>{_cmax:,.0f}</span>"
+                            f"<span>{(_cmax + _cmin) / 2:,.0f}</span>"
+                            f"<span>{_cmin:,.0f}</span>"
+                            f"</div></div></div>"
+                        )
+
+            # ── Légende taille (cercles SVG) ────────────────────
+            if _has_size_legend:
+                _legend_color = map_service._FLAT_COLOR
+                _mt = "8px" if _has_color_legend else "50px"
+                _legend_parts += (
+                    f"<div style='margin-top:{_mt}; padding:10px; "
+                    f"border:1px solid #ddd; border-radius:8px; "
+                    f"background:#fafafa;'>"
+                    f"<strong style='font-size:13px'>{size_metric}</strong><br>"
+                )
+                for _lbl, _diam in reversed(_size_legend_items):
+                    _r = _diam / 2
+                    _svg_h = max(_diam + 4, 12)
+                    _legend_parts += (
+                        f"<div style='display:flex;align-items:center;margin:4px 0'>"
+                        f"<svg width='{_svg_h}' height='{_svg_h}' style='flex-shrink:0'>"
+                        f"<circle cx='{_svg_h / 2}' cy='{_svg_h / 2}' r='{_r}' "
+                        f"fill='{_legend_color}' stroke='DarkSlateGrey' "
+                        f"stroke-width='1' opacity='0.8'/></svg>"
+                        f"<span style='margin-left:8px;font-size:12px;white-space:nowrap'>"
+                        f"{_lbl}</span></div>"
+                    )
+                _legend_parts += "</div>"
+
+            st.markdown(_legend_parts, unsafe_allow_html=True)
+    else:
+        st.plotly_chart(fig, width="stretch")
 
     with st.expander("Aperçu des données géolocalisées"):
         st.dataframe(df_geo.head(200))

@@ -92,10 +92,9 @@ class MariaDBClient:
             query += f" WHERE {where_clause}"
         if order_by:
             query += f" ORDER BY {order_by} DESC"
-        query += " LIMIT :limit"
+        query += f" LIMIT {int(limit)}"
 
         safe_params = dict(params or {})
-        safe_params["limit"] = limit
         return self.execute_query(query, safe_params)
 
     def fetch_logs(
