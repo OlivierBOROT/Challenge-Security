@@ -1,0 +1,56 @@
+challenge sécurité
+modèle & fine tuning - 1
+données - 1
+streamlit - 2
+LLM? - 3
+Donc guardrail - 4
+
+lang : python
+web app :  streamlit
+docker : uv workspace
+
+
+pas upload parce que hugging face est terrible pour les microservices + clé api terrible
+à dire à l'oral !!
+
+analyse desc des flux rejetés et autorisés !! demander ce qui est pertinent !!
+TOP (5, 10, 20) des IPs, Ports inf à 1024 avec un accès autorisé, lister les accès non inclus dans le plan d'adressage de l'univ
+proposer de DL les données de tout
+-> faire les graphs d'ELK mais dans Streamlit
+
+
+Qu'estce qu'on veut représenter ???
+
+
+faire une carte des demandes (genre projection factorielle ?)
+
+non supervisé
+
+LLM pour expliquer chaque sortie
+
+
+
+- présentation orale (pptx)
+- création de données
+- analyse descriptives
+- machine learning
+- streamlit
+- llm
+- dockerisation
+
+
+architecture ?????
+base de données ?????
+
+streamlit permettre de choisir "automatiquement" le meilleur modèle en amont du train du modèle via mistral
+compte rendu de l'état du SI
+aide à l'analyse
+
+analyse descriptive une partie "statique" qui analyse les données
+
+une partie dynamique qui "analyse" les données avec mistral et des modèles
+- graphique qui montre le nombre d'attaque par x temps et montrer les potentielles attaques dans une autre couleur
+export des données !!!
+
+
+garder des historiques de données pertinentes : historiser -> si via elastic search
