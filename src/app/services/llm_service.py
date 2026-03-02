@@ -3,7 +3,13 @@ llm singleton handler to be used to query the LLM model from Mistral
 and get the appropriate response in the correct format.
 """
 
-from mistral import Mistral
+import json
+import os
+
+from dotenv import load_dotenv
+from mistralai import Mistral
+
+load_dotenv()
 
 
 # from https://refactoring.guru/fr/design-patterns/singleton/python/example
@@ -63,8 +69,8 @@ class llm_service(metaclass=SingletonMeta):
     LLM service class to handle the singleton instance of the LLM model.
     """
 
-    def __init__(self, model_name: str = "mistral-7b-instruct-v0.1.Q4_0.gguf"):
-        self.model = Mistral(model_name)
+    def __init__(self, model_name: str = "mistral-medium-latest"):
+        self.model = Mistral(model_name, api_key=os.getenv("MISTRAL_API_KEY"))
 
     def query(self, which_preprompt: str, data: str) -> str:
         """
@@ -82,7 +88,6 @@ class llm_service(metaclass=SingletonMeta):
         """
         response = self.query("choose_between_models", data)
         # Assuming the response is a JSON string, we can parse it
-        import json
 
         try:
             return json.loads(response)
