@@ -13,4 +13,4 @@ COPY src ./src
 EXPOSE 8501
 
 # Lancement de l'application
-CMD ["uv", "run", "streamlit", "run", "src/app/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "streamlit", "run", "src/app/Dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
