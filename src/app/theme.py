@@ -16,45 +16,44 @@ Insertion : importer et appeler inject_theme() en PREMIER dans chaque page,
 
 import streamlit as st
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # TOKENS DE DESIGN — Modifier ici pour changer toute la charte en une fois
 # ══════════════════════════════════════════════════════════════════════════════
 
 # Vert phosphore CRT
-PHOSPHOR_GREEN   = "#00ff41"   # Couleur signature — titres, bordures actives
-PHOSPHOR_DIM     = "#00e63a"   # Atténué — texte secondaire (luminosité +15%)
-PHOSPHOR_GLOW    = "#00ff4133" # Avec transparence — halos / glow
-PHOSPHOR_GHOST   = "#00ff4108" # Quasi-invisible — scanlines
+PHOSPHOR_GREEN = "#00ff41"  # Couleur signature — titres, bordures actives
+PHOSPHOR_DIM = "#00e63a"  # Atténué — texte secondaire (luminosité +15%)
+PHOSPHOR_GLOW = "#00ff4133"  # Avec transparence — halos / glow
+PHOSPHOR_GHOST = "#00ff4108"  # Quasi-invisible — scanlines
 
 # Fonds
-BG_VOID          = "#000000"   # Noir absolu — fond principal
-BG_SURFACE       = "#050f05"   # Très légèrement teinté vert — sidebar
-BG_PANEL         = "#020a02"   # Fond des cartes / panneaux
-BG_HOVER         = "#001400"   # Survol des éléments interactifs
+BG_VOID = "#000000"  # Noir absolu — fond principal
+BG_SURFACE = "#050f05"  # Très légèrement teinté vert — sidebar
+BG_PANEL = "#020a02"  # Fond des cartes / panneaux
+BG_HOVER = "#001400"  # Survol des éléments interactifs
 
 # Couleurs sémantiques
-DANGER_RED       = "#ff2a2a"   # Rouge alerte
-WARNING_AMBER    = "#ffaa00"   # Ambre — avertissements
-INFO_CYAN        = "#00d4ff"   # Cyan — informations
+DANGER_RED = "#ff2a2a"  # Rouge alerte
+WARNING_AMBER = "#ffaa00"  # Ambre — avertissements
+INFO_CYAN = "#00d4ff"  # Cyan — informations
 
 # Bordures
-BORDER_BRIGHT    = "#00ff41"   # Bordures actives
-BORDER_DIM       = "#0a3d0a"   # Bordures passives
-BORDER_MID       = "#3a8c3a"   # Bordures moyennes (luminosité augmentée)
+BORDER_BRIGHT = "#00ff41"  # Bordures actives
+BORDER_DIM = "#0a3d0a"  # Bordures passives
+BORDER_MID = "#3a8c3a"  # Bordures moyennes (luminosité augmentée)
 
 # Polices
-FONT_MONO        = "'JetBrains Mono', 'Fira Code', 'Courier New', monospace"
-FONT_DISPLAY     = "'Share Tech Mono', 'VT323', monospace"
+FONT_MONO = "'JetBrains Mono', 'Fira Code', 'Courier New', monospace"
+FONT_DISPLAY = "'Share Tech Mono', 'VT323', monospace"
 
 # ── Couleurs de texte calibrées pour contraste AAA sur fonds sombres ──────────
 # Ces valeurs remplacent les anciennes qui étaient illisibles (#1a5c1a, #00c832)
-TEXT_BODY        = "#d4f5d4"   # Corps de texte — blanc-vert doux, confort lecture
-TEXT_LABEL       = "#c8f5c8"   # Labels formulaires — fort contraste sur bg-panel
-TEXT_SIDEBAR     = "#a8e6a8"   # Sidebar — lisible sur #050f05
-TEXT_CAPTION     = "#6abf6a"   # Captions / muted — ratio ≥ 4.5:1 sur noir
-TEXT_INPUT       = "#e8ffe8"   # Valeurs dans inputs / selectbox
-TEXT_MUTED       = "#4a9e4a"   # Très secondaire (disabled, placeholders)
+TEXT_BODY = "#d4f5d4"  # Corps de texte — blanc-vert doux, confort lecture
+TEXT_LABEL = "#c8f5c8"  # Labels formulaires — fort contraste sur bg-panel
+TEXT_SIDEBAR = "#a8e6a8"  # Sidebar — lisible sur #050f05
+TEXT_CAPTION = "#6abf6a"  # Captions / muted — ratio ≥ 4.5:1 sur noir
+TEXT_INPUT = "#e8ffe8"  # Valeurs dans inputs / selectbox
+TEXT_MUTED = "#4a9e4a"  # Très secondaire (disabled, placeholders)
 
 
 def inject_theme() -> None:
@@ -65,7 +64,8 @@ def inject_theme() -> None:
     Couvre : polices, reset global, sidebar, labels, métriques, boutons,
              alertes, dataframes, inputs, composants custom, scrollbar.
     """
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <style>
     /* ═══════════════════════════════════════════════════════════════════════
        POLICES GOOGLE FONTS
@@ -73,6 +73,28 @@ def inject_theme() -> None:
        Share Tech Mono → titres, valeurs KPI, style terminal
     ═══════════════════════════════════════════════════════════════════════ */
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap');
+    /* Material Icons (restore Streamlit icons when global font is overridden) */
+    @import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round|Material+Icons+Sharp|Material+Icons+Two+Tone');
+
+    /* Ensure material icon glyphs render correctly despite global monospace */
+    .material-icons,
+    .material-icons-outlined,
+    .material-icons-round,
+    .material-icons-sharp,
+    .material-icons-two-tone {{
+        font-family: 'Material Icons' !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        font-size: inherit !important;
+        line-height: 1 !important;
+        display: inline-block !important;
+        white-space: nowrap !important;
+        word-wrap: normal !important;
+        direction: ltr !important;
+        -webkit-font-feature-settings: 'liga' !important;
+        -webkit-font-smoothing: antialiased !important;
+        text-rendering: optimizeLegibility !important;
+    }}
 
     /* ═══════════════════════════════════════════════════════════════════════
        VARIABLES CSS GLOBALES
@@ -209,6 +231,11 @@ def inject_theme() -> None:
     [data-testid="stSidebar"] * {{
         font-family: var(--font-mono) !important;
         color: var(--text-sidebar) !important;
+    }}
+
+    /* Hide Streamlit sidebar collapse arrow (top icon) — not needed for this UI */
+    [data-testid="stSidebar"] span[data-testid="stIconMaterial"]:first-of-type {{
+        display: none !important;
     }}
 
     /* Liens de navigation (noms des pages) */
@@ -603,9 +630,15 @@ def inject_theme() -> None:
         transition: border-color 0.2s, box-shadow 0.2s;
     }}
     .soc-card:hover {{ box-shadow: var(--glow-sm); }}
-    .soc-card.danger  {{ border-left-color: var(--danger);  background: rgba(255,42,42,0.04);  color: {DANGER_RED}; }}
-    .soc-card.warning {{ border-left-color: var(--warning); background: rgba(255,170,0,0.04);  color: {WARNING_AMBER}; }}
-    .soc-card.info    {{ border-left-color: var(--info);    background: rgba(0,212,255,0.04);  color: {INFO_CYAN}; }}
+    .soc-card.danger  {{ border-left-color: var(--danger);  background: rgba(255,42,42,0.04);  color: {
+            DANGER_RED
+        }; }}
+    .soc-card.warning {{ border-left-color: var(--warning); background: rgba(255,170,0,0.04);  color: {
+            WARNING_AMBER
+        }; }}
+    .soc-card.info    {{ border-left-color: var(--info);    background: rgba(0,212,255,0.04);  color: {
+            INFO_CYAN
+        }; }}
 
     /* Badge terminal inline */
     .terminal-badge {{
@@ -688,26 +721,90 @@ def inject_theme() -> None:
         opacity: 0.6;
     }}
 
+    /* KPI Card — unified style for dashboard metric boxes */
+    .kpi-card {{
+        background: var(--bg-panel) !important;
+        border: 1px solid var(--border-mid) !important;
+        border-radius: 6px !important;
+        padding: 12px 16px !important;
+        color: var(--text-body) !important;
+        font-family: var(--font-mono) !important;
+        box-shadow: 0 4px 18px var(--phosphor-ghost, rgba(0,255,65,0.04)) !important;
+        transition: border-color 0.18s, box-shadow 0.18s !important;
+        display: block;
+    }}
+    .kpi-card:hover {{
+        border - color: var(--phosphor) !important;
+        box-shadow: var(--glow-sm) !important;
+    }}
+    .kpi-card .kpi-label {{
+        color: var(--text-caption) !important;
+        font-size: 0.78rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+    }}
+    .kpi-card .kpi-value {{
+        color: var(--phosphor) !important;
+        font-family: var(--font-display) !important;
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+        margin-top: 6px !important;
+        text-shadow: var(--glow-sm) !important;
+    }}
+    .kpi-card .kpi-sub {{
+        color: var(--text-caption) !important;
+        font-size: 0.72rem !important;
+        margin-top: 6px !important;
+    }}
+
+    /* Map legends (color & size) */
+    .map-legend {{ display:block; }}
+    .map-legend .legend-box {{
+        background: var(--bg-panel) !important;
+        border: 1px solid var(--border-dim) !important;
+        border-radius: 8px !important;
+        padding: 10px !important;
+        color: var(--text-body) !important;
+        font-family: var(--font-mono) !important;
+        max-height: 360px !important;
+        overflow-y: auto !important;
+    }}
+    .map-legend .legend-title {{
+        font-size: 0.85rem !important;
+        color: var(--text-caption) !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+    }}
+    .map-legend .legend-item {{ display:flex; align-items:center; gap:8px; margin:4px 0; }}
+    .map-legend .legend-swatch {{ width:12px; height:12px; border-radius:2px; border:1px solid var(--border-dim); flex-shrink:0; }}
+    .map-legend .legend-label {{ font-size:0.88rem; color:var(--text-body); white-space:nowrap; }}
+    .map-legend .legend-gradient {{ width:18px; border-radius:4px; border:1px solid var(--border-dim); flex-shrink:0; }}
+    .map-legend .legend-gradient-values {{ display:flex; flex-direction:column; justify-content:space-between; margin-left:8px; font-size:11px; color:var(--text-body); }}
+    .map-legend .legend-circle {{ flex-shrink:0; }}
+
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # COMPOSANTS HTML RÉUTILISABLES
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def soc_card(content: str, variant: str = "") -> str:
-    """Carte SOC colorée. variant : 'danger' | 'warning' | 'info' | '' """
+    """Carte SOC colorée. variant : 'danger' | 'warning' | 'info' | ''"""
     return f'<div class="soc-card {variant}">{content}</div>'
 
 
 def terminal_badge(text: str, variant: str = "") -> str:
-    """Badge inline terminal. variant : 'active' | 'danger' | '' """
+    """Badge inline terminal. variant : 'active' | 'danger' | ''"""
     return f'<span class="terminal-badge {variant}">{text}</span>'
 
 
 def threat_level(level: str, label: str) -> str:
-    """Point lumineux + label de menace. level : 'critical' | 'high' | 'medium' | 'low' """
+    """Point lumineux + label de menace. level : 'critical' | 'high' | 'medium' | 'low'"""
     return f"""<div class="threat-level {level}">
         <div class="dot"></div><span>{label}</span>
     </div>"""
@@ -719,7 +816,7 @@ def section_header(title: str) -> str:
 
 
 def data_row(key: str, value: str, value_class: str = "") -> str:
-    """Ligne clé/valeur. value_class : 'red' | 'amber' | 'cyan' | '' """
+    """Ligne clé/valeur. value_class : 'red' | 'amber' | 'cyan' | ''"""
     return f"""<div class="data-row">
         <span class="key">{key}</span>
         <span class="value {value_class}">{value}</span>

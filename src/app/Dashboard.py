@@ -12,8 +12,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from src.app.theme import data_row, inject_theme, section_header, soc_card, threat_level
 from src.app.utils import get_db_client
-from src.app.theme import inject_theme, soc_card, threat_level, section_header, data_row
 
 
 def render_vulnerable_ports(db):
@@ -239,24 +239,22 @@ def render_port_scan_analysis(db) -> None:
 
 def main() -> None:
     st.set_page_config(page_title="Dashboard Sécurité", layout="wide")
-    inject_theme() 
+    inject_theme()
     db = get_db_client()
     st.title("🛡️ Dashboard de l'état du SI")
 
     try:
         stats = db.get_security_ratios()
 
-        def _kpi_box(col, label, value, subtitle=None, bg="#ffffff"):
-            col.markdown(
-                f"""
-                        <div style="background:{bg}; padding:14px; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.08);">
-                            <div style="font-size:13px; color:#6c757d">{label}</div>
-                            <div style="font-size:22px; font-weight:700; margin-top:6px;">{value}</div>
-                            {f'<div style="font-size:12px; color:#6c757d; margin-top:6px;">{subtitle}</div>' if subtitle else ""}
-                        </div>
-                        """,
-                unsafe_allow_html=True,
-            )
+        def _kpi_box(col, label, value, subtitle=None):
+            html = f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">{label}</div>
+                    <div class="kpi-value">{value}</div>
+                    {f'<div class="kpi-sub">{subtitle}</div>' if subtitle else ""}
+                </div>
+            """
+            col.markdown(html, unsafe_allow_html=True)
 
         k1, k2, k3, k4 = st.columns(4, gap="large")
         _kpi_box(k1, "Total Flux", f"{stats['total']:,}")

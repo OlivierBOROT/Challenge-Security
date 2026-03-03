@@ -15,6 +15,15 @@ class map_service:
 
     _SIZE_MAX = 32
     _FLAT_COLOR = "steelblue"
+    # Theme colors (lighter grays for improved visibility on maps)
+    _BG_PANEL = "#151515"  # panel / plot background (slightly lighter dark gray)
+    _BG_SURFACE = "#2a2a2a"  # land / ocean lighter for contrast against panel
+    _BG_VOID = "#0f0f0f"  # very dark but not pure black
+    _PHOSPHOR = "#00ff41"
+    _TEXT_BODY = "#d4f5d4"
+    # Country/coastline border colors (lighter for visibility on dark map)
+    _COUNTRY_BORDER = "#cfcfcf"
+    _COASTLINE_COLOR = "#cfcfcf"
 
     def create_points_map(
         self,
@@ -47,7 +56,26 @@ class map_service:
             projection="natural earth",
             title=title,
         )
-        fig.update_layout(height=650)
+        fig.update_layout(
+            height=650,
+            paper_bgcolor=self._BG_PANEL,
+            plot_bgcolor=self._BG_PANEL,
+            font=dict(color=self._TEXT_BODY),
+            margin=dict(l=0, r=0, t=30, b=0),
+        )
+        fig.update_geos(
+            showcountries=True,
+            showland=True,
+            landcolor=self._BG_SURFACE,
+            oceancolor=self._BG_SURFACE,
+            lakecolor=self._BG_SURFACE,
+            bgcolor=self._BG_PANEL,
+            showocean=True,
+            countrycolor=self._COUNTRY_BORDER,
+            countrywidth=0.9,
+            coastlinecolor=self._COASTLINE_COLOR,
+            coastlinewidth=0.6,
+        )
         return fig
 
     def create_metric_bubble_map(
@@ -116,8 +144,25 @@ class map_service:
         # Masquer les légendes Plotly (rendues en HTML à côté de la carte)
         fig.update_layout(
             height=650,
+            paper_bgcolor=self._BG_PANEL,
+            plot_bgcolor=self._BG_PANEL,
+            font=dict(color=self._TEXT_BODY),
+            margin=dict(l=0, r=0, t=30, b=0),
             coloraxis_showscale=False,
             showlegend=False,
+        )
+        fig.update_geos(
+            showcountries=True,
+            showland=True,
+            landcolor=self._BG_SURFACE,
+            oceancolor=self._BG_SURFACE,
+            lakecolor=self._BG_SURFACE,
+            bgcolor=self._BG_PANEL,
+            showocean=True,
+            countrycolor=self._COUNTRY_BORDER,
+            countrywidth=0.9,
+            coastlinecolor=self._COASTLINE_COLOR,
+            coastlinewidth=0.6,
         )
         return fig
 
@@ -162,7 +207,26 @@ class map_service:
             color_continuous_scale=color_continuous_scale,
             title=title,
         )
-        fig.update_layout(height=650)
+        fig.update_layout(
+            height=650,
+            paper_bgcolor=self._BG_PANEL,
+            plot_bgcolor=self._BG_PANEL,
+            font=dict(color=self._TEXT_BODY),
+            margin=dict(l=0, r=0, t=30, b=0),
+        )
+        fig.update_geos(
+            showcountries=True,
+            showland=True,
+            landcolor=self._BG_SURFACE,
+            oceancolor=self._BG_SURFACE,
+            lakecolor=self._BG_SURFACE,
+            bgcolor=self._BG_PANEL,
+            showocean=True,
+            countrycolor=self._COUNTRY_BORDER,
+            countrywidth=0.9,
+            coastlinecolor=self._COASTLINE_COLOR,
+            coastlinewidth=0.6,
+        )
         return fig
 
     def create_map_for_metric(

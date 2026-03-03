@@ -14,9 +14,8 @@ import streamlit as st
 
 from src.app.services.geo_service import GeoService
 from src.app.services.map_service import map_service
+from src.app.theme import inject_theme
 from src.app.utils import get_db_client
-from src.app.theme import inject_theme                          
-
 
 
 def _find_default_column(columns: list[str], candidates: list[str]) -> str | None:
@@ -461,25 +460,21 @@ try:
 
                     _countries = df_geo[effective_color].dropna().unique().tolist()
                     _px_colors = _px.colors.qualitative.Plotly
+                    # categorical legend using theme classes
                     _legend_parts += (
-                        "<div style='margin-top:50px; padding:10px; "
-                        "border:1px solid #ddd; border-radius:8px; "
-                        "background:#fafafa; margin-bottom:8px; "
-                        "max-height:350px; overflow-y:auto'>"
-                        "<strong style='font-size:13px'>Pays</strong><br>"
+                        "<div class='map-legend' style='margin-top:50px;'>"
+                        "<div class='legend-box'>"
+                        "<div class='legend-title'>Pays</div>"
                     )
                     for _i, _c in enumerate(sorted(_countries)):
                         _clr = _px_colors[_i % len(_px_colors)]
                         _legend_parts += (
-                            f"<div style='display:flex;align-items:center;"
-                            f"margin:2px 0'>"
-                            f"<div style='width:12px;height:12px;"
-                            f"background:{_clr};border-radius:2px;"
-                            f"flex-shrink:0;border:1px solid #888'></div>"
-                            f"<span style='margin-left:6px;font-size:11px;"
-                            f"white-space:nowrap'>{_c}</span></div>"
+                            f"<div class='legend-item'>"
+                            f"<div class='legend-swatch' style='background:{_clr};'></div>"
+                            f"<div class='legend-label'>{_c}</div>"
+                            f"</div>"
                         )
-                    _legend_parts += "</div>"
+                    _legend_parts += "</div></div>"
                 else:
                     # Légende continue (gradient vertical)
                     _cvals = df_geo[effective_color].dropna()
@@ -489,23 +484,18 @@ try:
                         _css_gradient = map_service.color_scale_to_css(
                             color_scale, direction="to top"
                         )
+                        # continuous legend using theme classes
                         _legend_parts += (
-                            f"<div style='margin-top:50px; padding:10px; "
-                            f"border:1px solid #ddd; border-radius:8px; "
-                            f"background:#fafafa; margin-bottom:8px'>"
-                            f"<strong style='font-size:13px'>{color_metric}</strong>"
-                            f"<div style='display:flex; align-items:stretch; "
-                            f"margin-top:6px; height:180px'>"
-                            f"<div style='width:18px; border-radius:4px; "
-                            f"background:linear-gradient({_css_gradient}); "
-                            f"border:1px solid #aaa'></div>"
-                            f"<div style='display:flex; flex-direction:column; "
-                            f"justify-content:space-between; margin-left:8px; "
-                            f"font-size:11px'>"
+                            f"<div class='map-legend' style='margin-top:50px;'>"
+                            f"<div class='legend-box'>"
+                            f"<div class='legend-title'>{color_metric}</div>"
+                            f"<div style='display:flex; align-items:stretch; margin-top:6px; height:180px'>"
+                            f"<div class='legend-gradient' style='background:linear-gradient({_css_gradient});'></div>"
+                            f"<div class='legend-gradient-values'>"
                             f"<span>{_cmax:,.0f}</span>"
                             f"<span>{(_cmax + _cmin) / 2:,.0f}</span>"
                             f"<span>{_cmin:,.0f}</span>"
-                            f"</div></div></div>"
+                            f"</div></div></div></div>"
                         )
 
             # ── Légende taille (cercles SVG) ────────────────────
@@ -513,24 +503,24 @@ try:
                 _legend_color = map_service._FLAT_COLOR
                 _mt = "8px" if _has_color_legend else "50px"
                 _legend_parts += (
-                    f"<div style='margin-top:{_mt}; padding:10px; "
-                    f"border:1px solid #ddd; border-radius:8px; "
-                    f"background:#fafafa;'>"
-                    f"<strong style='font-size:13px'>{size_metric}</strong><br>"
+                    f"<div class='map-legend' style='margin-top:{_mt};'>"
+                    f"<div class='legend-box'>"
+                    f"<div class='legend-title'>{size_metric}</div>"
                 )
                 for _lbl, _diam in reversed(_size_legend_items):
                     _r = _diam / 2
                     _svg_h = max(_diam + 4, 12)
                     _legend_parts += (
-                        f"<div style='display:flex;align-items:center;margin:4px 0'>"
+                        f"<div class='legend-item'>"
+                        f"<div class='legend-circle'>"
                         f"<svg width='{_svg_h}' height='{_svg_h}' style='flex-shrink:0'>"
                         f"<circle cx='{_svg_h / 2}' cy='{_svg_h / 2}' r='{_r}' "
                         f"fill='{_legend_color}' stroke='DarkSlateGrey' "
-                        f"stroke-width='1' opacity='0.8'/></svg>"
-                        f"<span style='margin-left:8px;font-size:12px;white-space:nowrap'>"
-                        f"{_lbl}</span></div>"
+                        f"stroke-width='1' opacity='0.8'/></svg></div>"
+                        f"<div class='legend-label' style='margin-left:8px;font-size:12px;white-space:nowrap'>{_lbl}</div>"
+                        f"</div>"
                     )
-                _legend_parts += "</div>"
+                _legend_parts += "</div></div>"
 
             st.markdown(_legend_parts, unsafe_allow_html=True)
     else:
