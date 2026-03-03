@@ -1,3 +1,11 @@
+---
+title: Challenge Security
+emoji: 🛡️
+colorFrom: blue
+colorTo: red
+sdk: docker
+pinned: false
+---
 # 🛡️ SISE-Challenge-Security
 
 > **Plateforme d'analyse cybersécurité en temps réel**  
