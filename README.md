@@ -61,6 +61,10 @@
 - MariaDB server d'où proviennent les données
 - Clé API Mistral AI (optionnelle mais vivement recommandé, pour les rapports automatiques)
 
+## ☁️ Déploiement sur Hugging Face
+
+Le projet est déployé sur **Hugging Face Spaces** (Streamlit) : https://huggingface.co/spaces/ConstantinRC/challenge-security
+
 ### 1. Clonage et dépendances
 
 ```bash
@@ -223,12 +227,6 @@ INSERT INTO FW (datetime, ipsrc, ipdst, srcport, dstport, proto, action) VALUES
 ('2024-03-01 14:30:15', '192.168.1.100', '8.8.8.8', 54231, 53, 'UDP', 'permit'),
 ('2024-03-01 14:30:16', '10.0.0.50', '159.84.1.10', 12345, 22, 'TCP', 'deny');
 ```
-
----
-
-## ☁️ Déploiement sur Hugging Face
-
-Le projet est déployé sur **Hugging Face Spaces** (Streamlit) : https://huggingface.co/spaces/ConstantinRC/challenge-security
 
 ## 👥 Contributeurs
 
