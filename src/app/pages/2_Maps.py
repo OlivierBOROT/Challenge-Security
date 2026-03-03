@@ -5,7 +5,7 @@ from pathlib import Path
 root_path = Path(__file__).resolve().parent.parent.parent.parent
 if str(root_path) not in sys.path:
     sys.path.insert(0, str(root_path))
-    
+
 from datetime import timedelta
 
 import numpy as np
@@ -61,8 +61,49 @@ if "geo" not in st.session_state:
     st.session_state["geo"] = GeoService()
 geo: GeoService = st.session_state["geo"]
 
+
+# Cached DB helpers to avoid expensive re-queries on every rerun
+@st.cache_data(ttl=300)
+def _cached_list_tables() -> list:
+    try:
+        return MariaDBClient().list_tables()
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=300)
+def _cached_list_columns(table_name: str) -> list:
+    try:
+        return MariaDBClient().list_columns(table_name)
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=300)
+def _cached_execute_query(sql: str) -> pd.DataFrame:
+    try:
+        return MariaDBClient().execute_query(sql)
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=300)
+def _cached_fetch_table(
+    table_name: str, columns: list, where_clause: str | None, limit: int
+) -> pd.DataFrame:
+    try:
+        return MariaDBClient().fetch_table(
+            table_name=table_name,
+            columns=columns,
+            where_clause=where_clause,
+            limit=limit,
+        )
+    except Exception:
+        return pd.DataFrame()
+
+
 try:
-    tables = db_client.list_tables()
+    tables = _cached_list_tables()
     if not tables:
         st.warning("Aucune table disponible en base.")
         st.stop()
@@ -83,7 +124,7 @@ try:
         )
     with col_c:
         # Nombre total de lignes dans la table
-        count_df = db_client.execute_query(
+        count_df = _cached_execute_query(
             f"SELECT COUNT(*) AS total FROM {selected_table}"
         )
         max_rows = int(count_df.iloc[0]["total"]) if not count_df.empty else 20000
@@ -93,17 +134,16 @@ try:
             default_rows = 200
         # Utiliser un key unique pour que Streamlit conserve le choix utilisateur
         _slider_key = f"row_limit_{selected_table}"
-        _max_slider = max(200, max_rows) // 200 * 200
         row_limit = st.slider(
             "Nombre de lignes",
             min_value=200,
-            max_value=_max_slider,
+            max_value=max(200, max_rows),
             value=default_rows,
             step=200,
             key=_slider_key,
         )
 
-    table_columns = db_client.list_columns(selected_table)
+    table_columns = _cached_list_columns(selected_table)
 
     # ── Colonne IP à géolocaliser ───────────────────────────────────
     ip_cols = _ip_candidates(table_columns)
@@ -125,7 +165,7 @@ try:
             f"SELECT MIN(`{_TIME_COL}`) AS min_val, MAX(`{_TIME_COL}`) AS max_val "
             f"FROM {selected_table} WHERE `{_TIME_COL}` IS NOT NULL"
         )
-        bounds_df = db_client.execute_query(bounds_query)
+        bounds_df = _cached_execute_query(bounds_query)
 
         min_available = None
         max_available = None
@@ -203,7 +243,7 @@ try:
         if _ACTION_COL in table_columns and _ACTION_COL not in required_cols:
             required_cols.append(_ACTION_COL)
 
-        df_raw = db_client.fetch_table(
+        df_raw = _cached_fetch_table(
             table_name=selected_table,
             columns=required_cols,
             where_clause=time_where_clause,
@@ -242,7 +282,11 @@ try:
 
         # ── Géolocalisation ──────────────────────────────────────────
         with st.spinner("Géolocalisation des adresses IP…"):
-            df_geo = geo.enrich_dataframe(agg_ip, ip_col)
+            try:
+                df_geo = geo.enrich_dataframe(agg_ip, ip_col)
+            except Exception as _exc:
+                st.warning("Erreur lors de la géolocalisation des IPs (voir logs).")
+                df_geo = pd.DataFrame()
 
         if df_geo.empty:
             st.warning(
@@ -332,7 +376,7 @@ try:
         if _ACTION_COL in table_columns and _ACTION_COL not in required_cols:
             required_cols.append(_ACTION_COL)
 
-        df_raw = db_client.fetch_table(
+        df_raw = _cached_fetch_table(
             table_name=selected_table,
             columns=required_cols,
             where_clause=time_where_clause,
@@ -346,7 +390,11 @@ try:
         st.caption(f"▶ {len(df_raw)} lignes brutes récupérées (limit={row_limit})")
 
         with st.spinner("Géolocalisation des adresses IP…"):
-            df_geo = geo.enrich_dataframe(df_raw, ip_col)
+            try:
+                df_geo = geo.enrich_dataframe(df_raw, ip_col)
+            except Exception as _exc:
+                st.warning("Erreur lors de la géolocalisation des IPs (voir logs).")
+                df_geo = pd.DataFrame()
 
         if df_geo.empty:
             st.warning("Aucune IP publique géolocalisée.")
