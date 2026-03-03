@@ -10,7 +10,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY src ./src
 
 # Port par défaut pour Streamlit
-EXPOSE 8501
+EXPOSE 7860
 
 # Lancement de l'application
-CMD ["uv", "run", "streamlit", "run", "src/app/Dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "streamlit", "run", "src/app/Dashboard.py", "--server.port=7860", "--server.address=0.0.0.0"]
