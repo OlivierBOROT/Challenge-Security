@@ -45,24 +45,41 @@ st.markdown(
 # Contrôles en haut de page
 # ──────────────────────────────────────────────────────────────
 
+
 # Récupérer le nombre total de logs en BDD pour borner le slider
-_db_client = get_db_client()
-try:
-    _MAX_LOGS_DB = _db_client.count_all_logs(table_name="FW")
-except Exception:
-    _MAX_LOGS_DB = 10000
+@st.cache_data(ttl=300)
+def _count_logs_for_table(table_name: str) -> int:
+    try:
+        return get_db_client().count_all_logs(table_name=table_name)
+    except Exception:
+        return 10000
+
 
 ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1.5, 1.5, 2])
 
 with ctrl_col1:
     TABLE_NAME = st.selectbox("Table de logs", ["FW"], index=0)
+    # use cached count per table; compute bounds and a stable session key
+    _MAX_LOGS_DB = _count_logs_for_table(TABLE_NAME)
+    step = 500
+    min_val = 500
+    max_val = max(min_val, _MAX_LOGS_DB)
     _default_limit = min(5000, _MAX_LOGS_DB)
+    if _default_limit < min_val:
+        _default_limit = min_val
+    # align default to step
+    _default_limit = max(min_val, (_default_limit // step) * step)
+    _slider_key = f"ml_limit_{TABLE_NAME}"
+    # preserve previous user choice when possible
+    initial = st.session_state.get(_slider_key, _default_limit)
+    initial = min(max(initial, min_val), max_val)
     LIMIT = st.slider(
         "Nombre de logs à analyser (ML)",
-        min_value=500,
-        max_value=max(500, _MAX_LOGS_DB),
-        value=_default_limit,
-        step=500,
+        min_value=min_val,
+        max_value=max_val,
+        value=initial,
+        step=step,
+        key=_slider_key,
         help=f"Taille de l'échantillon. La BDD contient **{_MAX_LOGS_DB:,}** logs.",
     )
 
@@ -100,8 +117,8 @@ with ctrl_col3:
         LOF_NEIGHBORS = st.slider("n_neighbors", 5, 50, 20, step=5)
         LOF_CONTAMINATION = st.select_slider(
             "Contamination",
-            options=[0.01, 0.02, 0.05, 0.1, 0.15, 0.2],
-            value=0.05,
+            options=["auto", 0.01, 0.02, 0.05, 0.1, 0.15, 0.2],
+            value=LOF_CONTAMINATION,
         )
     else:
         st.info(
@@ -130,6 +147,7 @@ if RUN_BTN:
         "ml_model_choice",
         "ml_table",
         "ml_limit",
+        "ml_report_generated",
     ]:
         st.session_state.pop(_k, None)
 
@@ -308,7 +326,13 @@ def _build_anomaly_plots(
         port_anom.columns = ["dstport", "count"]
         if not port_anom.empty:
             port_anom["dstport"] = port_anom["dstport"].astype(str)
-            port_anom["label"] = "Port " + port_anom["dstport"] + " (" + port_anom["count"].astype(str) + ")"
+            port_anom["label"] = (
+                "Port "
+                + port_anom["dstport"]
+                + " ("
+                + port_anom["count"].astype(str)
+                + ")"
+            )
             figs["ports"] = px.treemap(
                 port_anom,
                 path=["label"],
@@ -398,7 +422,7 @@ m4.metric("Singletons", f"{metrics.singleton_count}")
 m5.metric("Kurtosis global", f"{metrics.global_kurtosis:.2f}")
 m6.metric("Hétérog. densité", f"{metrics.density_heterogeneity:.4f}")
 
-with st.expander("� Guide de lecture des métriques CAH"):
+with st.expander("Guide de lecture des métriques CAH"):
     st.markdown("""
 | Métrique | Signification | Comment l'interpréter |
 |----------|--------------|----------------------|
@@ -410,7 +434,7 @@ with st.expander("� Guide de lecture des métriques CAH"):
 | **Hétérog. densité** | Coefficient de variation des distances intra-cluster | Valeur **élevée** = clusters de densités très différentes → anomalies globales bien séparées. |
 """)
 
-with st.expander("�🔎 Entropie par feature"):
+with st.expander("🔎 Entropie par feature"):
     ent_df = pd.DataFrame(
         list(metrics.feature_entropy.items()),
         columns=["Feature", "Entropie"],
@@ -442,31 +466,20 @@ algo_label = None
 algo_reason = None
 
 if "Automatique" in MODEL_CHOICE:
-    # Cache la décision Mistral pour ne pas rappeler l'API à chaque rerun
-    if "ml_algo_label" not in st.session_state:
-        with st.spinner("🤖 Mistral analyse les métriques pour choisir l'algorithme…"):
-            try:
-                orchestrator = SecurityOrchestrator(model_name="mistral-medium-latest")
-                decision = orchestrator._decide_algorithm(metrics)
-                st.session_state["ml_algo_label"] = decision.algorithm
-                st.session_state["ml_algo_reason"] = decision.reason
-            except Exception as e:
-                st.warning(
-                    f"Erreur lors de l'appel Mistral : {e}. Fallback sur Isolation Forest."
-                )
-                st.session_state["ml_algo_label"] = "IF"
-                st.session_state["ml_algo_reason"] = (
-                    "Fallback automatique — erreur Mistral"
-                )
+    # Decision from Mistral should only be requested when the user explicitly
+    # launches the analysis to avoid calling the API on every Streamlit rerun
+    if "ml_algo_label" in st.session_state:
+        algo_label = st.session_state["ml_algo_label"]
+        algo_reason = st.session_state["ml_algo_reason"]
+        chosen_name = (
+            "Isolation Forest" if algo_label == "IF" else "Local Outlier Factor"
+        )
+        st.info(f"**Mistral a choisi : {chosen_name}**")
 
-    algo_label = st.session_state["ml_algo_label"]
-    algo_reason = st.session_state["ml_algo_reason"]
-
-    chosen_name = "Isolation Forest" if algo_label == "IF" else "Local Outlier Factor"
-    st.info(f"**Mistral a choisi : {chosen_name}**")
-
-    with st.expander("💡 Pourquoi Mistral a choisi cet algorithme ?", expanded=False):
-        st.markdown(f"""
+        with st.expander(
+            "💡 Pourquoi Mistral a choisi cet algorithme ?", expanded=False
+        ):
+            st.markdown(f"""
 **Algorithme retenu** : {chosen_name}
 
 **Justification de Mistral :**
@@ -487,6 +500,41 @@ if "Automatique" in MODEL_CHOICE:
 - Kurtosis global : **{metrics.global_kurtosis:.4f}** {"⚠️ > 3" if metrics.global_kurtosis > 3 else "✅ ≤ 3"}
 - Hétérogénéité de densité : **{metrics.density_heterogeneity:.4f}**
 """)
+    else:
+        # If the user has clicked "Lancer l'analyse", perform the decision now.
+        if st.session_state.get("ml_run_requested", False):
+            with st.spinner(
+                "🤖 Mistral analyse les métriques pour choisir l'algorithme…"
+            ):
+                try:
+                    orchestrator = SecurityOrchestrator(
+                        model_name="mistral-medium-latest"
+                    )
+                    decision = orchestrator._decide_algorithm(metrics)
+                    st.session_state["ml_algo_label"] = decision.algorithm
+                    st.session_state["ml_algo_reason"] = decision.reason
+                    algo_label = st.session_state["ml_algo_label"]
+                    algo_reason = st.session_state["ml_algo_reason"]
+                    chosen_name = (
+                        "Isolation Forest"
+                        if algo_label == "IF"
+                        else "Local Outlier Factor"
+                    )
+                    st.info(f"**Mistral a choisi : {chosen_name}**")
+                except Exception as e:
+                    st.warning(
+                        f"Erreur lors de l'appel Mistral : {e}. Fallback sur Isolation Forest."
+                    )
+                    st.session_state["ml_algo_label"] = "IF"
+                    st.session_state["ml_algo_reason"] = (
+                        "Fallback automatique — erreur Mistral"
+                    )
+                    algo_label = st.session_state["ml_algo_label"]
+                    algo_reason = st.session_state["ml_algo_reason"]
+        else:
+            st.info(
+                "Mode automatique : la décision Mistral sera prise lorsque vous lancerez l'analyse."
+            )
 
 elif "Isolation Forest" in MODEL_CHOICE:
     algo_label = "IF"
@@ -502,34 +550,42 @@ else:
 st.header("⚡ Détection d'anomalies")
 
 if "ml_scores" not in st.session_state:
-    with st.spinner("Entraînement du modèle en cours…"):
-        if algo_label == "IF":
-            contamination = IF_CONTAMINATION if IF_CONTAMINATION is not None else "auto"
-            _model = IsolationForest(contamination=contamination, random_state=42)
-            _model_display = f"Isolation Forest (contamination={contamination})"
-        else:
-            _model = LocalOutlierFactor(
-                n_neighbors=LOF_NEIGHBORS, contamination=LOF_CONTAMINATION
-            )
-            _model_display = f"Local Outlier Factor (n_neighbors={LOF_NEIGHBORS}, contamination={LOF_CONTAMINATION})"
+    # Only train when an algorithm choice exists (manual choice OR Mistral decided)
+    if algo_label is None:
+        st.info(
+            "En attente de la décision de l'algorithme — cliquez sur 'Lancer l'analyse'."
+        )
+    else:
+        with st.spinner("Entraînement du modèle en cours…"):
+            if algo_label == "IF":
+                contamination = (
+                    IF_CONTAMINATION if IF_CONTAMINATION is not None else "auto"
+                )
+                _model = IsolationForest(contamination=contamination, random_state=42)
+                _model_display = f"Isolation Forest (contamination={contamination})"
+            else:
+                _model = LocalOutlierFactor(
+                    n_neighbors=LOF_NEIGHBORS, contamination=LOF_CONTAMINATION
+                )
+                _model_display = f"Local Outlier Factor (n_neighbors={LOF_NEIGHBORS}, contamination={LOF_CONTAMINATION})"
 
-        _scores = _model.fit_predict(analyzer.X_scaled)
+            _scores = _model.fit_predict(analyzer.X_scaled)
 
-        if algo_label == "IF":
-            _score_values = _model.decision_function(analyzer.X_scaled)
-        else:
-            _score_values = _model.negative_outlier_factor_
+            if algo_label == "IF":
+                _score_values = _model.decision_function(analyzer.X_scaled)
+            else:
+                _score_values = _model.negative_outlier_factor_
 
-        st.session_state["ml_scores"] = _scores
-        st.session_state["ml_score_values"] = _score_values
-        st.session_state["ml_model_display"] = _model_display
-        st.session_state["ml_algo_label"] = algo_label
-        st.session_state["ml_algo_reason"] = algo_reason
-        st.session_state["ml_n_anomalies"] = int((_scores == -1).sum())
-        st.session_state["ml_n_normal"] = int((_scores == 1).sum())
-        st.session_state["ml_fraud_rate"] = (
-            st.session_state["ml_n_anomalies"] / len(_scores)
-        ) * 100
+            st.session_state["ml_scores"] = _scores
+            st.session_state["ml_score_values"] = _score_values
+            st.session_state["ml_model_display"] = _model_display
+            st.session_state["ml_algo_label"] = algo_label
+            st.session_state["ml_algo_reason"] = algo_reason
+            st.session_state["ml_n_anomalies"] = int((_scores == -1).sum())
+            st.session_state["ml_n_normal"] = int((_scores == 1).sum())
+            st.session_state["ml_fraud_rate"] = (
+                st.session_state["ml_n_anomalies"] / len(_scores)
+            ) * 100
 
 scores = st.session_state["ml_scores"]
 score_values = st.session_state["ml_score_values"]
@@ -956,10 +1012,7 @@ if not df_anomalies.empty:
                 _node_colors = (
                     ["#e74c3c"] * len(ips_list)
                     + ["#9b59b6"] * len(ports_list)
-                    + [
-                        "#2ecc71" if "permit" in a else "#e67e22"
-                        for a in actions_list
-                    ]
+                    + ["#2ecc71" if "permit" in a else "#e67e22" for a in actions_list]
                 )
 
                 fig_sankey = go.Figure(
@@ -1071,7 +1124,12 @@ if not df_anomalies.empty:
             st.info("Colonne `datetime` ou scores continus absents.")
 
 # ────── Rapport expert Mistral (optionnel) ──────
-if GENERATE_REPORT and not df_anomalies.empty:
+if (
+    GENERATE_REPORT
+    and not df_anomalies.empty
+    and st.session_state.get("ml_run_requested", False)
+    and not st.session_state.get("ml_report_generated", False)
+):
     st.header("📝 Rapport d'expertise SOC (Mistral)")
 
     with st.spinner("🤖 Mistral rédige le rapport d'expertise…"):
@@ -1229,6 +1287,8 @@ Propose des axes d'investigation complémentaires : corrélations à vérifier, 
                     file_name="rapport_soc_anomalies.md",
                     mime="text/markdown",
                 )
+                # mark that the report was generated to avoid regenerating on unrelated reruns
+                st.session_state["ml_report_generated"] = True
 
         except Exception as e:
             st.error(f"Erreur lors de la génération du rapport : {e}")
