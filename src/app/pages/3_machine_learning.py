@@ -29,11 +29,13 @@ from src.detection_anomaly.detection_anomaly import (
     CAHAnalyzer,
     SecurityOrchestrator,
 )
+from src.app.theme import inject_theme                          
 
 # ──────────────────────────────────────────────────────────────
 # Config Streamlit
 # ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Machine Learning — Détection d'anomalies", layout="wide")
+inject_theme()
 st.title("🤖 Détection d'anomalies dans les logs réseau")
 st.markdown(
     "Analyse topologique (CAH Ward) puis détection d'anomalies via **Isolation Forest** "

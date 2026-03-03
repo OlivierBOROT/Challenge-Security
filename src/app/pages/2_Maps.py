@@ -15,6 +15,8 @@ import streamlit as st
 from src.app.services.geo_service import GeoService
 from src.app.services.map_service import map_service
 from src.data.mariadb_client import MariaDBClient
+from src.app.theme import inject_theme                          
+
 
 
 def _find_default_column(columns: list[str], candidates: list[str]) -> str | None:
@@ -38,6 +40,7 @@ def _ip_candidates(columns: list[str]) -> list[str]:
 
 # ── page setup ──────────────────────────────────────────────────────
 st.set_page_config(page_title="Maps", layout="wide")
+inject_theme()
 
 # Réduire la largeur de la sidebar
 st.markdown(

@@ -14,9 +14,13 @@ import streamlit as st
 # Importations locales
 from src.data.mariadb_client import MariaDBClient
 from src.detection_anomaly.detection_anomaly import CAHAnalyzer, SecurityOrchestrator
+from src.app.theme import inject_theme                          
+
 
 # Configuration de la page
+
 st.set_page_config(page_title="Exploration DB & IA Cyber", page_icon="🛡️", layout="wide")
+inject_theme()
 st.title("🛡️ Table des données")
 
 
