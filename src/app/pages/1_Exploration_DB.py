@@ -12,7 +12,7 @@ import pandas as pd
 import streamlit as st
 
 # Importations locales
-from src.data.mariadb_client import MariaDBClient
+from src.app.utils import get_db_client
 from src.detection_anomaly.detection_anomaly import CAHAnalyzer, SecurityOrchestrator
 from src.app.theme import inject_theme                          
 
@@ -32,14 +32,14 @@ def load_firewall_logs(limit: int = 1000):
     Args:
         limit: nombre maximum de lignes à récupérer.
     """
-    db = MariaDBClient()
+    db = get_db_client()
     return db.fetch_logs(table_name="FW", limit=limit)
 
 
 @st.cache_data(ttl=300)
 def get_total_rows() -> int:
     try:
-        return MariaDBClient().count_all_logs(table_name="FW")
+        return get_db_client().count_all_logs(table_name="FW")
     except Exception:
         return 0
 
@@ -53,7 +53,7 @@ try:
         if max_rows and max_rows > 0 and max_rows not in row_options:
             row_options.append(max_rows)
         row_options = sorted(set(row_options))
-        default = 1000 if 1000 in row_options else row_options[0]
+        default = 100 if 100 in row_options else row_options[0]
         # present options with friendly labels (max value shown as-is)
         option_labels = [str(x) for x in row_options]
         selected_idx = st.selectbox(
@@ -68,10 +68,31 @@ try:
         st.metric("Lignes en base", f"{total_rows:,}")
 
     df_logs = load_firewall_logs(limit=selected_limit)
-
     # Affichage du tableau de données
     st.write(f"### 📋 Aperçu des logs réseau — affichage {len(df_logs):,} lignes")
-    st.dataframe(df_logs, width="stretch")
+
+    def _sanitize_df_for_display(df: pd.DataFrame) -> pd.DataFrame:
+        """Make a shallow copy and ensure object/bytes columns are safe for Arrow/Streamlit.
+
+        - decode bytes/bytearray to str
+        - leave other types as-is; fallback to str if Arrow still fails
+        """
+        df2 = df.copy()
+        for col in df2.select_dtypes(include=["object"]).columns:
+            try:
+                df2[col] = df2[col].apply(
+                    lambda v: v.decode() if isinstance(v, (bytes, bytearray)) else v
+                )
+            except Exception:
+                # best-effort: stringify
+                df2[col] = df2[col].apply(lambda v: "" if pd.isna(v) else str(v))
+        return df2
+
+    safe_df = _sanitize_df_for_display(df_logs)
+    try:
+        st.dataframe(safe_df, width="stretch")
+    except Exception:
+        st.dataframe(safe_df.astype(str), width="stretch")
 
     # Téléchargement du DataFrame affiché
     if not df_logs.empty:
@@ -148,6 +169,9 @@ try:
                 [types_row, uniques_row, examples_row, explanation_row],
                 index=["Type", "Nb. Val. uniques", "2 exemples", "Explication"],
             )
+
+            # Ensure all cells are strings — prevents pyarrow ArrowTypeError on mixed types
+            transposed = transposed.map(lambda v: "" if pd.isna(v) else str(v))
 
             st.markdown(
                 "**Tableau explicatif (lignes = métriques, colonnes = champs DB)**"
