@@ -24,12 +24,12 @@ from scipy.cluster.hierarchy import dendrogram
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
+from src.app.theme import inject_theme
 from src.app.utils import get_db_client
 from src.detection_anomaly.detection_anomaly import (
     CAHAnalyzer,
     SecurityOrchestrator,
 )
-from src.app.theme import inject_theme                          
 
 # ──────────────────────────────────────────────────────────────
 # Config Streamlit
